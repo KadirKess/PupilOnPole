@@ -1,0 +1,14 @@
+[project]
+name = "pupil-on-pole"
+version = "0.1.0"
+description = "DAgger and RLPD-style symmetric sampling on SuperTuxKart"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "rl-mind",
+    "pystk2-gymnasium",
+    "scipy",
+    "ipykernel",
+]
+
+[tool.uv]
+package = false
