@@ -10,4 +10,21 @@ The expert policies are the hand-coded agents from [osigaud/pystk_project](https
 uv sync
 ```
 
-The first environment launch downloads the SuperTuxKart game data (about 800 MB) into the user cache. On macOS, scripts that create the environment need an `if __name__ == "__main__":` guard, because the simulator runs in a spawned subprocess by default.
+The expert is team2's agent from that repository at commit `ddf2cb6`. Clone it anywhere and point `PYSTK_PROJECT_SRC` to its `src` folder.
+
+```sh
+git clone https://github.com/osigaud/pystk_project.git
+git -C pystk_project checkout ddf2cb6
+```
+
+Then set the variable, in bash or zsh with `export PYSTK_PROJECT_SRC=$PWD/pystk_project/src`, or in PowerShell with `$env:PYSTK_PROJECT_SRC = "$PWD\pystk_project\src"`.
+
+The first environment launch downloads the SuperTuxKart game data (about 800 MB) into the user cache. SuperTuxKart allows only one race per process, so parallel runs use separate processes.
+
+## Tests
+
+```sh
+uv run python -m unittest discover -s tests -t .
+```
+
+Tests that need the expert are skipped when `PYSTK_PROJECT_SRC` is not set.

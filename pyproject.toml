@@ -8,6 +8,16 @@ dependencies = [
     "pystk2-gymnasium",
     "scipy",
     "ipykernel",
+    "tqdm",
+    # imported by the team2 expert from pystk_project
+    "omegaconf",
+    "pyyaml",
+    "pandas",
+    "matplotlib",
+    "plotly",
+    "pytz",
+    "requests",
+    "pyparsing",
 ]
 
 [tool.uv]
