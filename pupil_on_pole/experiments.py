@@ -229,25 +229,58 @@ def load_experiment(experiment_dir, budget=None):
     return results
 
 
+def _welch_note(summary, metric, where):
+    tests = summary.get("welch")
+    if tests is None or tests.empty or metric not in set(tests["metric"]):
+        return None
+    row = tests[tests["metric"] == metric].iloc[0]
+    if row["p"] != row["p"]:
+        return None
+    label = {"dagger": "DAgger", "rlpd": "RLPD"}
+    return (f"Welch t-test {label.get(row['a'], row['a'])} vs {label.get(row['b'], row['b'])} {where}, "
+            f"t = {row['t']:.2f}, p = {row['p']:.2f} ({row['n_a']} and {row['n_b']} seeds)")
+
+
 def plot_experiment(results, experiment_dir):
     """The four figures of the study in figures/, as PNG and PDF"""
     from pupil_on_pole.analysis import endpoint
-    from pupil_on_pole.plotting import plot_action_use, plot_curve, plot_fire, plot_generalization, plot_held_out
+    from pupil_on_pole.env import STEP_SECONDS
+    from pupil_on_pole.plotting import (
+        plot_action_use,
+        plot_curve,
+        plot_fire,
+        plot_generalization,
+        plot_held_out,
+    )
+    from pupil_on_pole.plotting.style import track_label
 
     out = Path(experiment_dir) / "figures"
-    curves, expert = results["curves"], results["expert"]
+    curves, expert, summary = results["curves"], results["expert"], results["summary"]
     track = results["manifest"]["env_config"]["track"]
+    cap = results["manifest"]["env_config"]["max_steps"] * STEP_SECONDS
+    budget = summary["budget"]
+    at = f"at {budget // 1000}k steps"
+    name = track_label(track)
     figures = {
-        "lap_time": plot_curve(curves, expert, "lap_time_s", "Lap time (s), unfinished = cap", track, out / "lap_time"),
-        "finish_rate": plot_curve(curves, expert, "finish_rate", "Finish rate", track, out / "finish_rate"),
-        "actions": plot_action_use(endpoint(curves, results["summary"]["budget"])[0], expert, track, out / "actions"),
+        "lap_time": plot_curve(curves, expert, "lap_time_s", "Lap time (s)", track, out / "lap_time",
+                               title=f"Lap time on {name} during training",
+                               note=_welch_note(summary, "lap_time_s", at), cap=cap),
+        "finish_rate": plot_curve(curves, expert, "finish_rate", "Finish rate", track, out / "finish_rate",
+                                  title=f"Finish rate on {name} during training",
+                                  note=_welch_note(summary, "finish_rate", at)),
+        "actions": plot_action_use(endpoint(curves, budget)[0], expert, track, out / "actions",
+                                   title=f"Use of binary actions on {name} {at}"),
     }
     if not results["held_out"].empty:
-        figures["held_out"] = plot_held_out(results["held_out"], expert, "lap_time_s", "Lap time (s)", out / "held_out")
+        figures["held_out"] = plot_held_out(results["held_out"], expert, "lap_time_s", "Lap time (s)",
+                                            out / "held_out", title=f"Lap time on held-out tracks {at}", cap=cap)
         figures["held_out_finish"] = plot_held_out(results["held_out"], expert, "finish_rate", "Finish rate",
-                                                   out / "held_out_finish")
-    runs = results["summary"].get("generalization_runs")
+                                                   out / "held_out_finish",
+                                                   title=f"Finish rate on held-out tracks {at}")
+    runs = summary.get("generalization_runs")
     if runs is not None:
-        figures["generalization"] = plot_generalization(runs, track, out / "generalization")
-        figures["fire"] = plot_fire(runs, expert, track, out / "fire")
+        figures["generalization"] = plot_generalization(runs, track, out / "generalization",
+                                                        title=f"Lap time relative to team2 on each track {at}")
+        figures["fire"] = plot_fire(runs, expert, track, out / "fire", title=f"Item use per lap on each track {at}",
+                                    note=_welch_note(summary, "fire_presses", f"on {name} {at}"))
     return figures
