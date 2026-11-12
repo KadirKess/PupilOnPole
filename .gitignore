@@ -10,3 +10,4 @@ outputs-testing/
 build/
 *.egg-info/
 tmp/
+*.log
