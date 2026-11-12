@@ -20,8 +20,8 @@ def main():
         # With D0 in the buffer, a long uniform random phase only drives backwards
         rlpd_cfg=RLPDConfig(online_steps=BUDGET, learning_starts=1_000),
         eval_cfg=EvalConfig(n_episodes=30),
-        # 6 SuperTuxKart processes do not fit in 16 GB next to the desktop, 4 leave a margin
-        workers=4,
+        # Each worker takes about 130 MB and one core, so 6 fit on a 10-core Mac
+        workers=6,
         torch_threads=2,
     )
     print(f"Experiment folder: {out}")
