@@ -9,6 +9,7 @@ from pupil_on_pole.checkpoints import list_checkpoints, load_checkpoint
 from pupil_on_pole.config import EnvConfig, RLPDConfig
 from pupil_on_pole.data import Normalizer, ReplayBuffer, save_dataset
 from pupil_on_pole.rlpd import RLPDAgent, mixed_batch, run_rlpd
+from pupil_on_pole.env import ACTION_DIM
 from tests.fixtures import synthetic_dataset
 
 SMALL = dict(hidden=(16, 16), batch_size=8)
@@ -17,16 +18,16 @@ SMALL = dict(hidden=(16, 16), batch_size=8)
 def small_agent(**changes):
     torch.manual_seed(0)
     cfg = RLPDConfig(**{**SMALL, **changes})
-    return RLPDAgent(109, 7, cfg, Normalizer(np.zeros(109), np.ones(109)))
+    return RLPDAgent(109, ACTION_DIM, cfg, Normalizer(np.zeros(109), np.ones(109)))
 
 
 class MixedBatchTests(unittest.TestCase):
     def test_symmetric_split(self):
         arrays, _ = synthetic_dataset(EnvConfig(), n=20)
         offline = ReplayBuffer.from_dataset(arrays)
-        online = ReplayBuffer(109, 7, 10)
+        online = ReplayBuffer(109, ACTION_DIM, 10)
         for _ in range(10):
-            online.add(np.full(109, 7.0), np.zeros(7), 0.0, np.zeros(109), False)
+            online.add(np.full(109, 7.0), np.zeros(ACTION_DIM), 0.0, np.zeros(109), False)
         batch = mixed_batch(offline, online, 8, 0.5, np.random.default_rng(0))
         self.assertEqual(batch["obs"].shape, (8, 109))
         self.assertTrue(np.all(batch["obs"][4:] == 7.0))
@@ -35,7 +36,7 @@ class MixedBatchTests(unittest.TestCase):
     def test_ratio_one_never_samples_online(self):
         arrays, _ = synthetic_dataset(EnvConfig(), n=20)
         offline = ReplayBuffer.from_dataset(arrays)
-        batch = mixed_batch(offline, ReplayBuffer(109, 7, 1), 8, 1.0, np.random.default_rng(0))
+        batch = mixed_batch(offline, ReplayBuffer(109, ACTION_DIM, 1), 8, 1.0, np.random.default_rng(0))
         self.assertEqual(len(batch["rewards"]), 8)
 
 
@@ -44,7 +45,7 @@ class AgentUpdateTests(unittest.TestCase):
         rng = np.random.default_rng(0)
         return {
             "obs": rng.normal(size=(8, 109)).astype(np.float32),
-            "actions": rng.uniform(-1, 1, size=(8, 7)).astype(np.float32),
+            "actions": rng.uniform(-1, 1, size=(8, ACTION_DIM)).astype(np.float32),
             "rewards": np.full(8, rewards, dtype=np.float32),
             "next_obs": rng.normal(size=(8, 109)).astype(np.float32),
             "terminated": np.full(8, terminated, dtype=np.float32),
@@ -78,11 +79,11 @@ class AgentUpdateTests(unittest.TestCase):
         self.assertTrue(np.isfinite(actor_loss) and np.isfinite(entropy))
         self.assertTrue(any(not torch.equal(a, b) for a, b in zip(actor_before, agent.actor.parameters())))
         self.assertNotEqual(agent.temperature.item(), temperature)
-        self.assertEqual(agent.target_entropy, -7.0)
+        self.assertEqual(agent.target_entropy, -float(ACTION_DIM))
 
     def test_act_in_range(self):
         action = small_agent().act(np.zeros(109, dtype=np.float32))
-        self.assertEqual(action.shape, (7,))
+        self.assertEqual(action.shape, (ACTION_DIM,))
         self.assertTrue(np.all(np.abs(action) <= 1))
 
 

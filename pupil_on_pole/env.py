@@ -3,8 +3,9 @@ import numpy as np
 from pupil_on_pole.config import EnvConfig
 
 STEP_SECONDS = 0.1
-ACTION_NAMES = ("acceleration", "steer", "brake", "drift", "nitro", "rescue", "fire")
-BINARY_ACTIONS = ACTION_NAMES[2:]
+ACTION_NAMES = ("longitudinal", "steer", "drift", "nitro", "fire")
+POLICY_BINARY_ACTIONS = ACTION_NAMES[2:]
+BINARY_ACTIONS = ("brake", "drift", "nitro", "rescue", "fire")
 ACTION_DIM = len(ACTION_NAMES)
 N_ITEM_TYPES = 7
 
@@ -42,9 +43,10 @@ def progress_reward(delta, finished):
 def encode_action(action):
     """Map a pystk action dict to a float32 vector in [-1, 1], binary actions as +1 or -1"""
     vector = np.empty(ACTION_DIM, dtype=np.float32)
-    vector[0] = 2.0 * np.clip(_scalar(action.get("acceleration", 0.0)), 0.0, 1.0) - 1.0
+    throttle = np.clip(_scalar(action.get("acceleration", 0.0)), 0.0, 1.0)
+    vector[0] = -1.0 if bool(action.get("brake", False)) else throttle
     vector[1] = np.clip(_scalar(action.get("steer", 0.0)), -1.0, 1.0)
-    for index, name in enumerate(BINARY_ACTIONS, start=2):
+    for index, name in enumerate(POLICY_BINARY_ACTIONS, start=2):
         vector[index] = 1.0 if bool(action.get(name, False)) else -1.0
     return vector
 
@@ -55,10 +57,12 @@ def decode_action(vector):
     if vector.shape != (ACTION_DIM,):
         raise ValueError(f"Expected {ACTION_DIM} action values, got {vector.shape}")
     action = {
-        "acceleration": float((vector[0] + 1.0) / 2.0),
+        "acceleration": float(max(vector[0], 0.0)),
         "steer": float(vector[1]),
+        "brake": bool(vector[0] < 0.0),
+        "rescue": False,
     }
-    for index, name in enumerate(BINARY_ACTIONS, start=2):
+    for index, name in enumerate(POLICY_BINARY_ACTIONS, start=2):
         action[name] = bool(vector[index] > 0.0)
     return action
 

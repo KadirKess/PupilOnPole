@@ -21,7 +21,7 @@ class ActionTests(unittest.TestCase):
         action = {
             "acceleration": 0.25,
             "steer": -0.5,
-            "brake": True,
+            "brake": False,
             "drift": False,
             "nitro": True,
             "rescue": False,
@@ -38,12 +38,18 @@ class ActionTests(unittest.TestCase):
         self.assertFalse(any(decoded[name] for name in ("brake", "drift", "nitro", "rescue", "fire")))
 
     def test_decode_clips_and_thresholds(self):
-        decoded = decode_action(np.array([3.0, -2.0, 0.1, -0.1, 0.0, 1.0, -1.0]))
+        decoded = decode_action(np.array([3.0, -2.0, 0.1, -0.1, 0.0]))
         self.assertEqual(decoded["acceleration"], 1.0)
+        self.assertFalse(decoded["brake"])
         self.assertEqual(decoded["steer"], -1.0)
-        self.assertTrue(decoded["brake"])
-        self.assertFalse(decoded["drift"])
+        self.assertTrue(decoded["drift"])
         self.assertFalse(decoded["nitro"])
+
+    def test_negative_longitudinal_brakes_without_throttle(self):
+        decoded = decode_action(np.array([-0.3, 0.0, -1.0, -1.0, -1.0]))
+        self.assertTrue(decoded["brake"])
+        self.assertEqual(decoded["acceleration"], 0.0)
+        self.assertTrue(decode_action(encode_action({"acceleration": 0.6, "brake": True}))["brake"])
 
     def test_feature_count(self):
         self.assertEqual(len(feature_names(5, 5)), 109)

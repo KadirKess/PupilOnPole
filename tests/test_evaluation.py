@@ -9,6 +9,7 @@ from pupil_on_pole.config import DaggerConfig, EnvConfig, EvalConfig
 from pupil_on_pole.data import Normalizer
 from pupil_on_pole.evaluation import evaluate_checkpoints, evaluate_expert, evaluate_policy, summarize
 from pupil_on_pole.networks import DeterministicPolicy
+from pupil_on_pole.env import ACTION_DIM
 from tests.fakes import FakeEnv, FakeExpert
 
 
@@ -62,7 +63,7 @@ class EvaluateTests(unittest.TestCase):
 
     def test_policy_same_seeds_for_every_policy(self):
         env = FakeEnv(episode_steps=4)
-        policy = DeterministicPolicy(env.observation_dim, 7, (8,))
+        policy = DeterministicPolicy(env.observation_dim, ACTION_DIM, (8,))
         normalizer = Normalizer(np.zeros(env.observation_dim), np.ones(env.observation_dim))
         evaluate_policy(env, policy, normalizer, "scotland", 2, 100_000)
         evaluate_policy(env, policy, normalizer, "scotland", 2, 100_000)
@@ -75,7 +76,7 @@ class EvaluateTests(unittest.TestCase):
         eval_cfg = EvalConfig(n_episodes=2)
         with tempfile.TemporaryDirectory() as directory:
             for step in (0, 10, 20):
-                policy = DeterministicPolicy(env.observation_dim, 7, cfg.hidden)
+                policy = DeterministicPolicy(env.observation_dim, ACTION_DIM, cfg.hidden)
                 save_checkpoint(directory, "dagger", cfg, EnvConfig(), step, policy, normalizer, {"episodes": step})
             result = evaluate_checkpoints(env, list_checkpoints(Path(directory)), eval_cfg)
         self.assertEqual([p["online_step"] for p in result["curve"]], [0, 10, 20])

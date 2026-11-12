@@ -81,11 +81,12 @@ def print_dataset(experiment):
     print("\n== D0 ==")
     print(f"{len(actions)} transitions, {len(np.unique(episode))} episodes, "
           f"reward per step mean {rewards.mean():.3f}, min {rewards.min():.3f}, max {rewards.max():.3f}")
+    brake = (actions[:, 0] < 0).astype(int)
+    print(f"     brake on {100 * brake.mean():5.2f}% of steps")
     for i, name in enumerate(ACTION_NAMES):
         if i >= 2:
             print(f"  {name:>8} on {100 * on[:, i].mean():5.2f}% of steps")
     # The expert brakes only inside its reverse manoeuvre, count those manoeuvres
-    brake = on[:, 2].astype(int)
     starts = int(((np.diff(brake, prepend=0) == 1)).sum())
     print(f"  reverse manoeuvres (brake switching on): {starts}")
 
