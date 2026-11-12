@@ -21,15 +21,17 @@ def mlp(in_dim, out_dim, hidden, layer_norm=False):
 
 
 class DeterministicPolicy(nn.Module):
-    """BC and DAgger policy, tanh of an MLP on normalized observations"""
+    """BC and DAgger policy, tanh on the continuous outputs and logits on the binary ones"""
 
-    def __init__(self, obs_dim, action_dim, hidden):
+    def __init__(self, obs_dim, action_dim, hidden, n_continuous=None):
         super().__init__()
         self.obs_dim, self.action_dim, self.hidden = obs_dim, action_dim, tuple(hidden)
+        self.n_continuous = action_dim if n_continuous is None else n_continuous
         self.model = mlp(obs_dim, action_dim, hidden)
 
     def forward(self, obs):
-        return torch.tanh(self.model(obs))
+        out = self.model(obs)
+        return torch.cat([torch.tanh(out[..., : self.n_continuous]), out[..., self.n_continuous :]], dim=-1)
 
 
 class GaussianPolicy(nn.Module):

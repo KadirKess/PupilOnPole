@@ -59,8 +59,11 @@ class DaggerConfig:
     lr: float = 3e-4
     hidden: tuple[int, ...] = (256, 256)
     checkpoint_every: int = 5_000
+    binary_loss: str = "mse"
 
     def __post_init__(self):
+        if self.binary_loss not in ("mse", "bce"):
+            raise ValueError(f"Unknown binary_loss {self.binary_loss}")
         _check_positive(
             self,
             ("online_steps", "episodes_per_iter", "grad_steps", "batch_size", "lr", "checkpoint_every"),

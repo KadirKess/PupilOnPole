@@ -52,7 +52,10 @@ def load_checkpoint(path):
     config["hidden"] = tuple(config["hidden"])
     cfg = Config(**config)
     env_cfg = EnvConfig(**{"reward_version": 1, **payload["env_config"]})
-    policy = Policy(payload["obs_dim"], payload["action_dim"], cfg.hidden)
+    if payload["method"] == "dagger" and getattr(cfg, "binary_loss", "mse") == "bce":
+        policy = Policy(payload["obs_dim"], payload["action_dim"], cfg.hidden, 2)
+    else:
+        policy = Policy(payload["obs_dim"], payload["action_dim"], cfg.hidden)
     policy.load_state_dict(payload["policy"])
     policy.eval()
     normalizer = Normalizer.from_state_dict(payload["normalizer"])

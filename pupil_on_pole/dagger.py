@@ -18,10 +18,11 @@ EPISODE_SEED_STRIDE = 1_000_000
 
 
 def train_bc(obs, actions, normalizer, cfg, seed):
-    """Train a fresh DeterministicPolicy by MSE on the labels, return it and the mean loss of the last 100 steps"""
+    """Train a fresh DeterministicPolicy, return it and the mean loss of the last 100 steps"""
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
-    policy = DeterministicPolicy(obs.shape[1], actions.shape[1], cfg.hidden)
+    n_continuous = 2 if cfg.binary_loss == "bce" else actions.shape[1]
+    policy = DeterministicPolicy(obs.shape[1], actions.shape[1], cfg.hidden, n_continuous)
     optimizer = torch.optim.Adam(policy.parameters(), lr=cfg.lr)
     # Normalized once, the normalizer is frozen
     x = normalizer(torch.as_tensor(np.asarray(obs), dtype=torch.float32))
@@ -29,7 +30,11 @@ def train_bc(obs, actions, normalizer, cfg, seed):
     tail = []
     for step in range(cfg.grad_steps):
         idx = torch.as_tensor(rng.integers(0, len(x), size=cfg.batch_size))
-        loss = F.mse_loss(policy(x[idx]), y[idx])
+        out, target = policy(x[idx]), y[idx]
+        n = policy.n_continuous
+        loss = F.mse_loss(out[:, :n], target[:, :n])
+        if n < out.shape[1]:
+            loss = loss + F.binary_cross_entropy_with_logits(out[:, n:], (target[:, n:] + 1.0) / 2.0)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
