@@ -23,6 +23,21 @@ KART_FEATURES = (
 def _scalar(value):
     return float(np.asarray(value, dtype=np.float32).reshape(-1)[0])
 
+# 10 m in one 0.1 s step is 360 km/h, no kart gets there
+MAX_STEP_DISTANCE = 10.0
+
+
+def step_distance(previous, current):
+    """Distance driven in one step, 0 when STK jumps to another track sector"""
+    delta = float(current) - float(previous)
+    return 0.0 if abs(delta) > MAX_STEP_DISTANCE else delta
+
+
+def progress_reward(delta, finished):
+    """pystk2's reward for a single kart, computed on the jump-free distance"""
+    return delta / 10.0 - 0.1 + (10.0 if finished else 0.0)
+
+
 
 def encode_action(action):
     """Map a pystk action dict to a float32 vector in [-1, 1], binary actions as +1 or -1"""
@@ -108,6 +123,8 @@ class SoloKartEnv:
         global _live_env
         if _live_env is not None:
             raise RuntimeError("Close the existing SoloKartEnv first, one race per process")
+        if cfg.reward_version != 2:
+            raise ValueError("Only reward_version 2 is implemented, rerun with the current EnvConfig")
         from pystk2_gymnasium import AgentSpec
         from pystk2_gymnasium.envs import STKRaceEnv
 
@@ -144,6 +161,9 @@ class SoloKartEnv:
         self._noise_left = 0
         self._noise_steer = 0.0
         self._steps = 0
+        world = self.race.world
+        self._stk_distance = max(0.0, float(world.karts[self.race.kart_ix].overall_distance))
+        self._distance = 0.0
         self._best_distance = 0.0
         self._last_progress = 0
         return self._features(raw), {"raw_obs": raw, "steps": 0}
@@ -170,20 +190,24 @@ class SoloKartEnv:
         if perturbed:
             self._noise_left -= 1
             executed["steer"] = self._noise_steer
-
-        raw, reward, terminated, _, info = self.race.step(executed)
+        raw, stk_reward, terminated, _, info = self.race.step(executed)
         self._steps += 1
-        distance = float(info["distance"])
+        terminated=bool(terminated)
+        delta = step_distance(self._stk_distance, info["distance"])
+        # Follow STK even after a jump, so later steps and the jump back are measured correctly
+        self._stk_distance = float(info["distance"])
+        self._distance += delta
+        distance = self._distance
         if distance >= self._best_distance + self.cfg.stuck_min_progress:
             self._best_distance = distance
             self._last_progress = self._steps
-        terminated = bool(terminated)
         stuck = self._steps - self._last_progress >= self.cfg.stuck_steps
         timeout = self._steps >= self.cfg.max_steps
         truncated = not terminated and (stuck or timeout)
         out = {
             "raw_obs": raw,
             "distance": distance,
+            "stk_reward": float(stk_reward),
             "progress": float(np.clip(distance / self.track_length, 0.0, 1.0)),
             "finished": terminated,
             "stuck": not terminated and stuck,
@@ -191,7 +215,7 @@ class SoloKartEnv:
             "perturbed": perturbed,
             "executed": executed,
         }
-        return self._features(raw), float(reward), terminated, truncated, out
+        return self._features(raw), progress_reward(delta, terminated), terminated, truncated, out
 
     def _features(self, raw):
         return featurize(raw, self.cfg.n_paths, self.cfg.n_items)

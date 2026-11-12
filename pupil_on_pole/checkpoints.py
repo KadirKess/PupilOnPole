@@ -51,7 +51,7 @@ def load_checkpoint(path):
     config = dict(payload["config"])
     config["hidden"] = tuple(config["hidden"])
     cfg = Config(**config)
-    env_cfg = EnvConfig(**payload["env_config"])
+    env_cfg = EnvConfig(**{"reward_version": 1, **payload["env_config"]})
     policy = Policy(payload["obs_dim"], payload["action_dim"], cfg.hidden)
     policy.load_state_dict(payload["policy"])
     policy.eval()

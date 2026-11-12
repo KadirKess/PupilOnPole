@@ -10,6 +10,8 @@ from pupil_on_pole.env import (
     decode_action,
     encode_action,
     feature_names,
+    progress_reward,
+    step_distance,
 )
 from tests.fixtures import needs_expert
 
@@ -45,6 +47,20 @@ class ActionTests(unittest.TestCase):
 
     def test_feature_count(self):
         self.assertEqual(len(feature_names(5, 5)), 109)
+
+class RewardTests(unittest.TestCase):
+    def test_track_jumps_are_ignored(self):
+        # Jump sizes seen in D0 on scotland, none of them is the track length
+        steps = [(0.0, 5.0), (5.0, 1173.5), (1173.5, 1176.0), (1176.0, 23.0)]
+        deltas = [step_distance(a, b) for a, b in steps]
+        self.assertEqual(deltas, [5.0, 0.0, 2.5, 0.0])
+
+    def test_reversing_counts_as_negative_progress(self):
+        self.assertEqual(step_distance(100.0, 97.5), -2.5)
+
+    def test_reward_matches_pystk2_without_wrap(self):
+        self.assertAlmostEqual(progress_reward(2.0, False), 0.1)
+        self.assertAlmostEqual(progress_reward(2.0, True), 10.1)
 
 
 class SoloKartEnvTests(unittest.TestCase):
@@ -119,6 +135,19 @@ class SoloKartEnvTests(unittest.TestCase):
                 self.assertNotEqual(info["executed"]["steer"], 0.0)
                 return
         self.fail("no perturbation in 200 steps")
+
+    def test_reversing_earns_nothing(self):
+            self.use(noise_prob=0.0, max_steps=100)
+            self.env.reset(0)
+            forward, backward = encode_action({"acceleration": 1.0}), encode_action({"brake": True})
+            rewards = []
+            for action in [forward] * 20 + [backward] * 80:
+                _, reward, terminated, truncated, info = self.env.step(action)
+                rewards.append(reward)
+                if terminated or truncated:
+                    break
+            self.assertLess(max(rewards), 1.0)
+            self.assertLess(info["progress"], 0.5)
 
     def test_rescue_is_ignored(self):
         self.use(noise_prob=0.0, max_steps=60)

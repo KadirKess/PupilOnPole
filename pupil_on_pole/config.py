@@ -22,6 +22,7 @@ class EnvConfig:
     # Truncate after stuck_steps without stuck_min_progress metres of progress
     stuck_steps: int = 150
     stuck_min_progress: float = 1.0
+    reward_version: int=2
     n_paths: int = 5
     n_items: int = 5
 
